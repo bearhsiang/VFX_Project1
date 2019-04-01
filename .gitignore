@@ -1,7 +1,3 @@
-
-
-imgs/
-
-mtb/
-
-hdr/
+*.hdr
+*.jpg
+*.JPG
