@@ -3,6 +3,7 @@ import numpy as np
 import sys
 import time
 import matplotlib.pyplot as plt
+from matplotlib import cm, ticker
 import math
 
 t = []
@@ -14,6 +15,7 @@ points = []
 
 def weight(a):
     if(a > 128):
+        if(a == 255): return 1
         return 255-a
     return a
 
@@ -22,8 +24,8 @@ def m(a):
         return True
     return False
 
-def g_trans(a, c, time):
-    return g[c][a]-np.log(t[time])
+def g_trans(a, time):
+    return g[a]-np.log(t[time])
 
 def findCurve_gray(images):
     p = len(images)
@@ -52,20 +54,21 @@ def findCurve_gray(images):
 
     return x[0:256], x[256:]
 
-def findCurve_color(images, c):
-    print("find response curve of channel", c)
+def findCurve_color(images):
+    print("find response curve of channel")
     p = len(images)
-    A = np.zeros((n*p+255, 256+n))
-    b = np.zeros(n*p+255)
+    A = np.zeros((n*p*3+255, 256+n))
+    b = np.zeros(n*p*3+255)
 
     k = 0
     for i in range(n):
         for j in range(p):
-            m = images[j].item(points[i][0], points[i][1], c)
-            A[k, m] = weight(m)
-            A[k, 256+i] = -weight(m)
-            b[k] = weight(m)*math.log(t[j])
-            k += 1
+            for c in range(3):
+                m = images[j].item(points[i][0], points[i][1], c)
+                A[k, m] = weight(m)
+                A[k, 256+i] = -weight(m)
+                b[k] = weight(m)*math.log(t[j])
+                k += 1
 
     A[k, 127] = 1
     k += 1
@@ -95,7 +98,7 @@ for i in open(sys.argv[2], "r"):
     t.append(eval(s))
     imgNames.append(imgname)
     img = cv2.imread(d+imgname)
-    img = cv2.resize(img, (800, 600))
+    # img = cv2.resize(img, (800, 600))
     # gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     imgs.append(img)
     # gray_imgs.append(gray_image)
@@ -107,8 +110,9 @@ np.random.seed(int(time.time()))
 # cv2.imshow("", imgs[8])
 # cv2.waitKey()
 
-
-for i in range(n):
+record = np.zeros(256)
+i = 0
+while i < n or (np.sum(record) < 230 and i < 2*n):
     p1 = np.random.randint(h)
     p2 = np.random.randint(w)
     hit = 0
@@ -116,15 +120,18 @@ for i in range(n):
         if imgs[j].item(p1, p2, 0) == 255 and imgs[j].item(p1, p2, 1) == 0 \
             and imgs[j].item(p1, p2, 2) == 0:
             hit = 1
-            # print("hit")
-            i -= 1
             break
-        if hit == 0:
-            points.append((p1, p2))
+    if hit == 0:
+        i += 1
+        points.append((p1, p2))
+        for k in range(len(imgs)):
+            for c in range(3):
+                record[imgs[k][p1][p2][c]] = 1
 
+print(np.sum(record))
 # for i in range(len(points)):
 #     plt.plot(points[i][0], points[i][1], 'ro')
-#
+
 # plt.show()
 # while True:
 #
@@ -135,11 +142,9 @@ for i in range(n):
 #     else:
 #         break
 
-g = np.zeros((4, 256))
-E = np.zeros((4, n))
+g = np.zeros(256)
 
-for i in range(3):
-    [g[i], E[i]] = findCurve_color(imgs, i)
+[g, tmp] = findCurve_color(imgs)
 
 
 # [g[3], E[3]] = findCurve_gravfxy(gray_imgs)
@@ -148,12 +153,11 @@ for i in range(3):
 # print(g, len(g))
 # print(E, len(E))
 #
-color = ['bo', 'go', 'ro', 'co']
-for i in range(len(g)):
-    for j in range(len(g[i])):
-        plt.plot(j, g[i][j], color[i])
+# color = ['bo', 'go', 'ro', 'co']
+# for i in range(len(g)):
+#    plt.plot(i, g[i], color[0])
 
-plt.show()
+# plt.show()
 
 eImg = np.zeros((h, w, 3))
 eImg_w = np.zeros((h, w, 3))
@@ -170,7 +174,7 @@ for i in range(len(imgs)):
         w_matric = w_vec(imgs[i][:, :, j])
         w_matric[mask] = 0
         eImg_w[:, :, j] += w_matric
-        eImg_log[:, :, j] += w_matric * g_vec(imgs[i][:, :, j], j, i)
+        eImg_log[:, :, j] += w_matric * g_vec(imgs[i][:, :, j], i)
 
 check = eImg_w == 0
 eImg_w[check] = 1
@@ -179,46 +183,26 @@ eImg = np.exp(eImg_log)
 eImg[check][:] = 0
 
 
-# f, (ax1, ax2) = plt.subplots(1, 2)
+# f, (ax1, ax2) = plt.subplots(ncols=2)
 
 # im1 = ax1.pcolormesh(eImg[:, :, 0], cmap="gist_rainbow")
 # f.colorbar(im1, ax=ax1)
 
-# im2 = ax2.pcolormesh(eImg[:, :, 1], cmap="gist_rainbow")
+# im2 = ax2.pcolormesh(eImg_log[:, :, 1], cmap="gist_rainbow")
 # f.colorbar(im2, ax = ax2)
 
 # plt.show()
+# fig, ax = plt.subplots()
+# cs = ax.pcolormesh(eImg_log[:, :, 0], cmap="gist_rainbow")
 
+# cbar = fig.colorbar(cs)
+# plt.ylim(eImg.shape[0], 0)
+# plt.show()
 
+# imgplot = plt.imshow(eImg)
+# plt.colorbar()
+# plt.show()
 
 # g = cv2.cvtColor(eImg_log, cv2.COLOR_BGR2GRAY)
 eImg = np.float32(eImg)
-# gray_eImg = np.float32(gray_eImg)
-
-cv2.imwrite(sys.argv[3]+".exr", eImg)
-# cv2.imwrite(sys.argv[3]+".exr", gray_eImg)
-
-
 cv2.imwrite(sys.argv[3]+".hdr", eImg)
-# cv2.imwrite(sys.argv[3]+".hdr", gray_eImg)
-# # low_image = extract(gray_eImg, 0.01)
-# # cv2.imwrite("testLow.jpg", low_image)
-
-# np.save(sys.argv[2], eImg)
-# np.save(sys.argv[3], gray_eImg)
-
-# print(np.max(eImg), np.min(eImg))
-
-
-
-# tonemapDrago = cv2.createTonemapDrago(1.0, 0.7)
-# ldrDrago = tonemapDrago.process(eImg)
-# ldrDrago = 3 * ldrDrago
-# cv2.imwrite("ldr-Drago.jpg", ldrDrago * 255)
-# fig, (ax0, ax1) = plt.subplots(1, 2)
-# im = ax0.pcolormesh(eImg)
-# fig.colorbar(im, ax=ax0)
-# im = ax1.pcolormesh(eImg_log)
-# fig.colorbar(im, ax=ax1)
-#
-# plt.show()

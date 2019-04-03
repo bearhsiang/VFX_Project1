@@ -26,7 +26,7 @@ def shift(m, n, axis):
 	return x
 
 def count_shift(im1, im2):
-	
+	print(im1, im2)
 	fimgs = []
 	mimgs = []
 	fimg = cv2.imread(im1)
@@ -35,16 +35,23 @@ def count_shift(im1, im2):
 	fimg_g = cv2.cvtColor(fimg, cv2.COLOR_BGR2GRAY)
 	mimg_g = cv2.cvtColor(mimg, cv2.COLOR_BGR2GRAY)
 
+	# cv2.imwrite(im1[:-4]+"_gray.png", fimg_g)
+	# cv2.imwrite(im2[:-4]+"_gray.png", mimg_g)
+
 	fimgs.append(fimg_g)
 	mimgs.append(mimg_g)
-
+	(h, w) = fimg_g.shape
 	while True:
 		(x, y) = fimgs[-1].shape
 		x = x // 2
 		y = y // 2
-		if x > 3 and y > 3:
-			fimgs.append(cv2.resize(fimgs[-1], (y, x)))
-			mimgs.append(cv2.resize(mimgs[-1], (y, x)))
+		if x >= 3 and y >= 3:
+			fimg = cv2.resize(fimgs[-1], (y, x))
+			mimg = cv2.resize(mimgs[-1], (y, x))
+			fimgs.append(fimg)
+			mimgs.append(mimg)
+			# cv2.imwrite(im1[:-4]+'_'+str(x)+'_'+str(y)+'.png', cv2.resize(fimg, (w, h), interpolation=cv2.INTER_NEAREST))
+			# cv2.imwrite(im2[:-4]+'_'+str(x)+'_'+str(y)+'.png', cv2.resize(mimg, (w, h), interpolation=cv2.INTER_NEAREST))
 			# cv2.imshow('', fimgs[-1])
 			# cv2.waitKey(0)
 			# cv2.destroyAllWindows()
@@ -66,11 +73,26 @@ def count_shift(im1, im2):
 		maskf = np.logical_or(fimgs[t] <= (medf-255*ignoreRatio), fimgs[t] >= (medf+255*ignoreRatio))
 		maskm = np.logical_or(mimgs[t] <= (medm-255*ignoreRatio), mimgs[t] >= (medm+255*ignoreRatio))
 		loss = np.zeros((3, 3))
+		
+
+		# tmp = np.zeros((h, w))
+		# tmp[bitf] = 255
+		# cv2.imwrite(im1[:-4]+'_bit_'+str(h)+'_'+str(w)+'.png', cv2.resize(tmp, (fimg_g.shape[1], fimg_g.shape[0]), interpolation=cv2.INTER_NEAREST))
+		# tmp = np.zeros((h, w))
+		# tmp[maskf] = 255
+		# cv2.imwrite(im1[:-4]+'_mask_'+str(h)+'_'+str(w)+'.png', cv2.resize(tmp, (fimg_g.shape[1], fimg_g.shape[0]), interpolation=cv2.INTER_NEAREST))
+		
+		# tmp = np.zeros((h, w))
+		# tmp[bitm] = 255
+		# cv2.imwrite(im2[:-4]+'_bit_'+str(h)+'_'+str(w)+'.png', cv2.resize(tmp, (fimg_g.shape[1], fimg_g.shape[0]), interpolation=cv2.INTER_NEAREST))
+		# tmp = np.zeros((h, w))
+		# tmp[maskm] = 255
+		# cv2.imwrite(im2[:-4]+'_mask_'+str(h)+'_'+str(w)+'.png', cv2.resize(tmp, (fimg_g.shape[1], fimg_g.shape[0]), interpolation=cv2.INTER_NEAREST))
+
 		bitm = shift(bitm, trans_h, 0)
 		bitm = shift(bitm, trans_w, 1)
 		maskm = shift(maskm, trans_h, 0)
 		maskm = shift(maskm, trans_w, 1)
-		
 		for i in range(3):
 			for j in range(3):
 				bit_sh = shift(bitm, i-1, 0)
@@ -80,6 +102,9 @@ def count_shift(im1, im2):
 				loss_matrix = np.logical_and(maskf, np.logical_and(mask_sh, np.logical_xor(bit_sh, bitf)))
 				loss[i][j] = np.sum(loss_matrix)
 				loss[i][j] += (abs(i-1)*w + abs(j-1)*h)*0.1
+				tmp = np.zeros((h, w))
+				tmp[loss_matrix] = 255
+				# cv2.imwrite(im2[:-4]+'_lose_'+str(h)+'_'+str(w)+'_'+str(i)+'_'+str(j)+'.png', cv2.resize(tmp, (fimg_g.shape[1], fimg_g.shape[0]), interpolation=cv2.INTER_NEAREST))
 				#print(i," ",j,loss[i][j])		
 				#tmp=np.zeros(bitf.shape)
 				#tmp[loss_matrix] = 255
@@ -87,6 +112,8 @@ def count_shift(im1, im2):
 				#plt.imshow(tmp)
 				#plt.show()
 		m = np.argmin(loss)
+		
+
 		#print(m)
 		trans_h += trans[m][0]
 		trans_w += trans[m][1]
